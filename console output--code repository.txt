@@ -1,0 +1,70 @@
+Debug: Inicializando script de simulación UAT corregida para PBH...
+Debug: rho_crit0 = 8.53e-27 kg/m^3
+Debug: M0 = 1.00e+12 kg, a0 = 9.17e-04, t_max = 2.50e+17 s
+Iniciando integración ODE...
+Debug: Pasos integrados: 42, Masa final: 9.99e+11 kg, a final: 6.27e-01
+Debug: d_L(z=1089) = 4.67e+29 m
+Debug: Rango Omega_GW: 2.97e-55 a 2.93e-51
+Debug: CSV guardado como 'C:\Users\los percu\simulation_results_corrected.csv'
+Debug: CSV GW guardado como 'C:\Users\los percu\gw_spectrum_corrected.csv'
+Debug: Archivo 'C:\Users\los percu\simulation_results_corrected.csv' creado exitosamente.
+Debug: Archivo 'C:\Users\los percu\gw_spectrum_corrected.csv' creado exitosamente.
+
+Simulación completada. Gráficos y CSVs generados.
+Debug: Ejecución finalizada el 2025-09-11 23:53:06
+
+
+-----------------------------------------------------------------------------------------------------------------
+
+CODE REPOSITORY:
+
+=== REQUIREMENTS FOR RUNNING THE UAT-PBH SIMULATION PYTHON CODE ===
+
+1. PYTHON VERSION:
+   - Recommended version: Python 3.12.3 (or higher, compatible with 3.8+)
+   - To verify on your PC: Run 'python --version' in the terminal.
+
+2. REQUIRED LIBRARIES (install with pip if not present):
+   - NumPy (version 1.26.4 or higher): For numerical calculations and arrays.
+     Command: pip install numpy
+   - Matplotlib (version 3.6.3 or higher): For generating plots and visualizations.
+     Command: pip install matplotlib
+   - Pandas (version 2.3.0 or higher): For handling and saving data to CSV.
+     Command: pip install pandas
+   - SciPy (version 1.11.4 or higher): For numerical integration (solve_ivp) and scientific functions.
+     Command: pip install scipy
+   - Note: These libraries are imported in the code as 'import numpy as np', 'import matplotlib.pyplot as plt', etc.
+   - To verify if installed on your PC, run this script or use 'pip list | grep numpy' (Linux/Mac) or 'pip list' (Windows).
+
+3. REQUIRED FOLDERS AND FILES:
+   - No special folders or files are required to run the basic code.
+   - The code runs in the current working directory of your PC.
+     - Command to check current directory in Python: os.getcwd()
+     - Generated files: The code will automatically create:
+       - 'simulation_results_corrected.csv': Simulation data (mass, temperature, UAT, etc.).
+       - 'gw_spectrum_corrected.csv': Gravitational wave spectrum.
+       - 'uat_pbh_results_corrected.png': Result plots.
+   - In Jupyter Notebook (if using http://localhost:8888/tree): Ensure the code runs in the desired directory for saving files.
+     - To check current directory in Jupyter: !pwd (in a cell).
+     - Files in current directory: os.listdir('.')
+   - Permissions: Ensure write permissions in the directory to save CSVs and PNG.
+
+4. INSTRUCTIONS FOR ANOTHER PC:
+   - Install Python 3.8+ from python.org.
+   - Install libraries with: pip install numpy matplotlib pandas scipy
+   - Copy the Python code to a .py file or a Jupyter Notebook (.ipynb).
+   - Run the code: python filename.py (or in Jupyter: Run All).
+   - If using Jupyter: Run 'jupyter notebook' to start the local server.
+   - Check console output for debug messages and paths of generated files.
+
+5. LOCAL VERIFICATION (running on this PC):
+   - NumPy: Installed (version 2.2.5)
+   - Matplotlib: Installed (version 3.10.1)
+   - Pandas: Installed (version 2.2.3)
+   - SciPy: Installed (version 1.15.2)
+
+   - Current working directory: C:\Users\los percu
+   - Files in directory: ['.idlerc', '.ipynb_checkpoints', '.ipython', '.jupyter', '.matplotlib', gw_spectrum_corrected.csv , 
+simulation_results_corrected.csv , UAT_PBH_3_11.9.25 , UAT_PBH_3_11.9.25.py , uat_pbh_results_corrected , manuscrito_UAT_PBH_correcto_11_9_25.pdf , UAT_PBH_3_11.9.25.ipynb
+
+=== END OF VERIFICATION ===

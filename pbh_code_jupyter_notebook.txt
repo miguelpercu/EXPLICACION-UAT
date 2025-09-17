@@ -1,0 +1,196 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+from scipy.integrate import solve_ivp, quad
+import time
+
+# Depuración: Imprimir inicio
+print("Debug: Inicializando script de simulación UAT corregida para PBH...")
+
+# Constantes físicas fundamentales
+G = 6.67430e-11  # m^3 kg^-1 s^-2
+c = 3e8          # m/s
+hbar = 1.0545718e-34  # J s
+k_B = 1.380649e-23  # J/K
+l_planck = np.sqrt((hbar * G) / (c**3))  # m
+gamma = 0.2375   # Barbero-Immirzi
+
+# Función para radio de Schwarzschild
+def schwarzschild_radius(M):
+    return (2 * G * M) / (c**2)
+
+# Parámetros cosmológicos (Planck 2018)
+H0 = 67.4  # km/s/Mpc
+H0_s = H0 * 1e3 / (3.0857e22)  # s^-1
+Omega_m0 = 0.315
+Omega_r0 = 8.4e-5
+Omega_Lambda0 = 0.685
+rho_crit0 = 3 * H0_s**2 / (8 * np.pi * G)  # kg/m^3
+print(f"Debug: rho_crit0 = {rho_crit0:.2e} kg/m^3")
+
+# Parámetros de simulación PBH
+M0 = 1e12  # kg
+z_recomb = 1089
+a0 = 1 / (1 + z_recomb)
+t_span = [0, 2.5e17]  # s
+kappa = 0.0130  # Factor de acreción
+
+print(f"Debug: M0 = {M0:.2e} kg, a0 = {a0:.2e}, t_max = {t_span[1]:.2e} s")
+
+# Tasa de Hubble H(a)
+def H(a):
+    return H0_s * np.sqrt(Omega_m0 / a**3 + Omega_r0 / a**4 + Omega_Lambda0)
+
+# Sistema ODE: da/dt = H(a) * a, dM/dt = dM_Hawking + dM_acc
+def dY_dt(t, Y):
+    a, M = Y
+    if M <= 0:
+        M = 1e-10
+    rho_m = Omega_m0 * rho_crit0 / a**3  # Dinámica!
+    rs = schwarzschild_radius(M)
+    hawking_loss = -(hbar * c**4) / (15360 * np.pi * G**2 * M**2)
+    accretion_rate = kappa * rho_m * (4 * np.pi * rs**2) * c
+    dM_dt = hawking_loss + accretion_rate
+    da_dt = H(a) * a
+    return [da_dt, dM_dt]
+
+# Integración numérica
+print("Iniciando integración ODE...")
+sol = solve_ivp(dY_dt, t_span, [a0, M0], method='RK45', rtol=1e-6, atol=1e-8)
+times = sol.t
+a_t = sol.y[0]
+masses = np.maximum(sol.y[1], 1e-10)  # Evitar negativos
+temperatures = (hbar * c**3) / (8 * np.pi * G * k_B * masses)
+
+print(f"Debug: Pasos integrados: {len(times)}, Masa final: {masses[-1]:.2e} kg, a final: {a_t[-1]:.2e}")
+
+# Distancia de luminosidad (aprox para z inicial)
+def luminosity_distance(z):
+    def integrand(zp):
+        return c / H(1/(1+zp))  # Nota: H en términos de a
+    int_val, _ = quad(integrand, 0, z)
+    return (1 + z) * int_val
+
+dL = luminosity_distance(z_recomb)
+print(f"Debug: d_L(z={z_recomb}) = {dL:.2e} m")
+
+# Tiempo Aplicable Unificado (corregido)
+def t_applied_unified(t_event, a, M, r):
+    rs = schwarzschild_radius(M)
+    grav_factor_val = max(1 - (2 * G * M) / (c**2 * r), 1e-10)
+    grav_factor = np.sqrt(grav_factor_val)
+    lqg_factor = 1 / (1 + (gamma * l_planck**2) / (4 * np.pi * rs**2)) if rs > 0 else 1
+    z = 1 / a - 1
+    return t_event * (1 + z) * (1 / a) * grav_factor * lqg_factor + dL / c
+
+r_val = schwarzschild_radius(M0) * 10  # Distancia radial fija aprox
+t_unified_results = [t_applied_unified(t, a, m, r_val) for t, a, m in zip(times, a_t, masses)]
+
+# μ-distorsión (mejorada)
+def mu_distortion(M, z=1089):
+    T_cmb = 2.725 * (1 + z)
+    rho_cmb = (np.pi**2 / 15) * (k_B * T_cmb)**4 / (hbar**3 * c**3)  # Densidad CMB
+    f_pbh = 5e-7
+    dE_dt = f_pbh * abs((hbar * c**4) / (15360 * np.pi * G**2 * M**2))  # |dM/dt| * c^2 aprox
+    mu = 2.2 * (dE_dt / (4 * rho_cmb * c)) / (1 + z)  # Aprox para inyección
+    return np.clip(mu, 1e-8, 9e-5)
+
+mu_distortions = [mu_distortion(m, z_recomb) for m in masses]
+
+# Espectro GW de Hawking (cuerpo negro para gravitones, amplitud tiny)
+def omega_gw(f, T_H):
+    x = hbar * 2 * np.pi * f / (k_B * T_H)
+    planck = np.where(x > 0, 1 / (np.exp(x) - 1), 0)
+    f_peak = k_B * T_H / hbar  # ~10^21 Hz
+    # Amplitud extremadamente pequeña: ~10^{-50} para M~10^12 kg
+    Omega_peak = 1e-50  # Basado en literatura (ajustado)
+    spectrum = Omega_peak * (f / f_peak)**3 * x**3 * planck
+    return np.clip(spectrum, 1e-60, 1e-40)
+
+T_H = temperatures[-1]  # Usar final para demo
+f_values = np.logspace(21, 22, 200)  # Rango ultra-alto
+Omega_gw_values = omega_gw(f_values, T_H)
+print(f"Debug: Rango Omega_GW: {min(Omega_gw_values):.2e} a {max(Omega_gw_values):.2e}")
+
+# Guardar CSV
+data = {
+    'Time (s)': times,
+    'Scale Factor a(t)': a_t,
+    'Mass (kg)': masses,
+    'Hawking Temp (K)': temperatures,
+    'Unified Time (s)': t_unified_results,
+    'Mu Distortion': mu_distortions
+}
+df = pd.DataFrame(data)
+df.to_csv('simulation_results_corrected.csv', index=False)
+print("Debug: CSV guardado como 'simulation_results_corrected.csv'")
+
+gw_data = {'Frequency (Hz)': f_values, 'Omega_GW': Omega_gw_values}
+df_gw = pd.DataFrame(gw_data)
+df_gw.to_csv('gw_spectrum_corrected.csv', index=False)
+print("Debug: CSV GW guardado como 'gw_spectrum_corrected.csv'")
+
+# Gráficos (6 figuras como en manuscrito)
+fig, axs = plt.subplots(3, 2, figsize=(15, 12))
+fig.suptitle('Simulación UAT PBH - Resultados Corregidos')
+
+# Fig 1: Masa
+axs[0,0].loglog(times, masses, label='M(t)')
+axs[0,0].set_xlabel('Tiempo cósmico (s)')
+axs[0,0].set_ylabel('Masa (kg)')
+axs[0,0].set_title('Evolución Masa PBH')
+axs[0,0].grid(True)
+axs[0,0].legend()
+
+# Fig 2: Temp Hawking
+axs[0,1].loglog(times, temperatures, label='T_H(t)', color='orange')
+axs[0,1].set_xlabel('Tiempo cósmico (s)')
+axs[0,1].set_ylabel('T (K)')
+axs[0,1].set_title('Evolución Temp Hawking')
+axs[0,1].grid(True)
+axs[0,1].legend()
+
+# Fig 3: UAT
+axs[1,0].loglog(times, t_unified_results, label='UAT(t)', color='green')
+axs[1,0].set_xlabel('Tiempo evento (s)')
+axs[1,0].set_ylabel('Tiempo Unificado (s)')
+axs[1,0].set_title('Evolución UAT')
+axs[1,0].grid(True)
+axs[1,0].legend()
+
+# Fig 4: Densidades vs z (estático)
+z_vals = np.logspace(0, 4, 100)
+rho_m_z = Omega_m0 * rho_crit0 * (1 + z_vals)**3
+rho_rad_z = Omega_r0 * rho_crit0 * (1 + z_vals)**4
+rho_L_z = Omega_Lambda0 * rho_crit0 * np.ones_like(z_vals)
+axs[1,1].loglog(z_vals, rho_m_z, label=r'$\rho_m$')
+axs[1,1].loglog(z_vals, rho_rad_z, label=r'$\rho_r$')
+axs[1,1].loglog(z_vals, rho_L_z, label=r'$\rho_\Lambda$')
+axs[1,1].set_xlabel('z')
+axs[1,1].set_ylabel('Densidad (kg/m³)')
+axs[1,1].set_title('Densidades vs Redshift')
+axs[1,1].grid(True)
+axs[1,1].legend()
+
+# Fig 5: μ-distorsión
+axs[2,0].loglog(times, mu_distortions, label=r'$\mu$(t)', color='purple')
+axs[2,0].set_xlabel('Tiempo cósmico (s)')
+axs[2,0].set_ylabel(r'$\mu$')
+axs[2,0].set_title('Evolución μ-distorsión CMB')
+axs[2,0].grid(True)
+axs[2,0].legend()
+
+# Fig 6: Espectro GW
+axs[2,1].loglog(f_values, Omega_gw_values, label=r'$\Omega_{GW}$', color='red')
+axs[2,1].set_xlabel('Frecuencia (Hz)')
+axs[2,1].set_ylabel(r'$\Omega_{GW}$')
+axs[2,1].set_title('Espectro GW Hawking (indetectable)')
+axs[2,1].grid(True)
+axs[2,1].legend()
+
+plt.tight_layout()
+plt.savefig('uat_pbh_results_corrected.png', dpi=300)
+plt.show()
+
+print("Simulación completada. Gráficos y CSVs generados.")
+print(f"Debug: Ejecución finalizada el {time.strftime('%Y-%m-%d %H:%M:%S')}")
